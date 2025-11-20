@@ -1,0 +1,17 @@
+[package]
+name = "rmd"
+version = "0.1.0"
+edition = "2021"
+description = "A terminal-based Markdown document viewer"
+authors = ["rmd"]
+license = "Unlicense"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+pulldown-cmark = "0.12"
+dirs = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
