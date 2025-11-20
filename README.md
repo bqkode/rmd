@@ -5,6 +5,18 @@ A terminal-based Markdown document viewer written in Rust. Browse and read Markd
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+## Screenshots
+
+![Open document](images/1_open.png)
+
+![Browse files](images/2_browse.png)
+
+![Find in document](images/3_find.png)
+
+![Search all files](images/4_search.png)
+
+![Preferences](images/5_preferences.png)
+
 ## Features
 
 - **Tree sidebar** - Navigate directories and Markdown files
@@ -18,6 +30,13 @@ A terminal-based Markdown document viewer written in Rust. Browse and read Markd
 - **Mouse support** - Scroll through documents with mouse wheel
 
 ## Installation
+
+### From Homebrew
+
+```bash
+brew tap bqkode/tap
+brew install rmd
+```
 
 ### From source
 
