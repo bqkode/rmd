@@ -718,8 +718,8 @@ fn draw_about_overlay(f: &mut Frame, area: Rect) {
     // Clear the area
     f.render_widget(Clear, overlay_area);
 
-    // Get version from build-time environment variable
-    let version = option_env!("RMD_VERSION").unwrap_or("v0.0.1");
+    // Static version number
+    let version = "v0.3.0";
 
     let about_text = vec![
         Line::from(""),
@@ -731,7 +731,7 @@ fn draw_about_overlay(f: &mut Frame, area: Rect) {
         )),
         Line::from(""),
         Line::from(Span::styled(
-            format!("Version: {}", version),
+            version,
             Style::default().fg(Color::Rgb(166, 226, 46)),
         )),
         Line::from(""),
