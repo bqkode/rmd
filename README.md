@@ -3,7 +3,7 @@
 A terminal-based Markdown document viewer written in Rust. Browse and read Markdown files with a tree sidebar and syntax-highlighted content view.
 
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)
-![License](https://img.shields.io/badge/license-MIT-blue)
+![License](https://img.shields.io/badge/license-Unlicense-blue)
 
 ## Screenshots
 
@@ -41,7 +41,7 @@ brew install rmd
 ### From source
 
 ```bash
-git clone https://github.com/yourusername/rmd.git
+git clone https://github.com/bqkode/rmd.git
 cd rmd
 cargo build --release
 ```
