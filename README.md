@@ -76,8 +76,6 @@ rmd /path/to/markdown/files
 | Key | Action |
 |-----|--------|
 | `/` | Search in document |
-| `n` | Next match |
-| `N` | Previous match |
 | `Ctrl+s` | Search all files |
 
 ### General

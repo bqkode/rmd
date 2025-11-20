@@ -6,8 +6,67 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, AppMode, Focus};
+use crate::app::{App, AppMode, Focus, Theme};
 use crate::markdown::{RenderedLine, TextSegment};
+
+// Theme color definitions
+struct ThemeColors {
+    foreground: Color,
+    background: Color,
+    comment: Color,
+    heading1: Color,
+    heading2: Color,
+    heading3: Color,
+    heading4: Color,
+    heading5: Color,
+    heading6: Color,
+    code: Color,
+    code_bg: Color,
+    link: Color,
+    table: Color,
+    highlight_fg: Color,
+    highlight_bg: Color,
+}
+
+fn get_theme_colors(theme: Theme) -> ThemeColors {
+    match theme {
+        Theme::Dark => ThemeColors {
+            foreground: Color::Rgb(248, 248, 242),    // Monokai foreground
+            background: Color::Rgb(39, 40, 34),       // Monokai background
+            comment: Color::Rgb(117, 113, 94),        // Monokai comment
+            heading1: Color::Rgb(253, 151, 31),       // Monokai orange
+            heading2: Color::Rgb(166, 226, 46),       // Monokai green
+            heading3: Color::Rgb(230, 219, 116),      // Monokai yellow
+            heading4: Color::Rgb(174, 129, 255),      // Monokai purple
+            heading5: Color::Rgb(102, 217, 239),      // Monokai cyan
+            heading6: Color::Rgb(117, 113, 94),       // Monokai comment
+            code: Color::Rgb(166, 226, 46),           // Monokai green
+            code_bg: Color::Rgb(39, 40, 34),          // Monokai background
+            link: Color::Rgb(102, 217, 239),          // Monokai cyan
+            table: Color::Rgb(102, 217, 239),         // Monokai cyan
+            highlight_fg: Color::Rgb(102, 217, 239),  // Cyan
+            highlight_bg: Color::Rgb(39, 40, 34),     // Dark background
+        },
+        Theme::Light => ThemeColors {
+            // GitHub Light theme inspired colors
+            foreground: Color::Rgb(36, 41, 46),       // GitHub dark text
+            background: Color::Rgb(255, 255, 255),    // White
+            comment: Color::Rgb(106, 115, 125),       // GitHub comment gray
+            heading1: Color::Rgb(215, 58, 73),        // GitHub red/pink
+            heading2: Color::Rgb(34, 134, 58),        // GitHub green
+            heading3: Color::Rgb(111, 66, 193),       // GitHub purple
+            heading4: Color::Rgb(0, 92, 197),         // GitHub blue
+            heading5: Color::Rgb(227, 98, 9),         // GitHub orange
+            heading6: Color::Rgb(106, 115, 125),      // GitHub comment gray
+            code: Color::Rgb(0, 92, 197),             // GitHub blue
+            code_bg: Color::Rgb(246, 248, 250),       // GitHub light gray bg
+            link: Color::Rgb(3, 102, 214),            // GitHub link blue
+            table: Color::Rgb(0, 92, 197),            // GitHub blue
+            highlight_fg: Color::Rgb(36, 41, 46),     // Dark text
+            highlight_bg: Color::Rgb(255, 251, 221),  // GitHub yellow highlight
+        },
+    }
+}
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     // Split into main area and bottom bar
@@ -81,12 +140,12 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(" Full  "),
             Span::styled(" / ", Style::default().fg(Color::Black).bg(Color::White)),
             Span::raw(" Find  "),
-            Span::styled(" n/N ", Style::default().fg(Color::Black).bg(Color::White)),
-            Span::raw(" Next/Prev  "),
             Span::styled(" ^s ", Style::default().fg(Color::Black).bg(Color::White)),
             Span::raw(" Search  "),
             Span::styled(" v ", Style::default().fg(Color::Black).bg(Color::White)),
             Span::raw(" Select  "),
+            Span::styled(" ^p ", Style::default().fg(Color::Black).bg(Color::White)),
+            Span::raw(" Settings  "),
             Span::styled(" ? ", Style::default().fg(Color::Black).bg(Color::White)),
             Span::raw(" About "),
         ])
@@ -189,7 +248,7 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::Rgb(253, 151, 31)))
-                .title(" Find (Enter: next, ^Enter: prev, Esc: close) "),
+                .title(" Find (Enter/^n: next, ^p: prev, Esc: close) "),
         )
         .style(Style::default().fg(Color::White));
 
@@ -210,12 +269,15 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
 
     let area = content_area;
 
+    // Get theme colors
+    let colors = get_theme_colors(app.settings.theme);
+
     // Wrap lines at max width and track source line indices
-    let max_width = 120;
+    let max_width = app.settings.wrap_width.to_usize();
     let mut wrapped_lines: Vec<(Line, usize, bool)> = Vec::new(); // (line, source_idx, is_first)
 
     for (source_idx, line) in app.rendered_content.iter().enumerate() {
-        let wrapped = wrap_line(line, max_width);
+        let wrapped = wrap_line(line, max_width, &colors);
         for (i, wrapped_line) in wrapped.into_iter().enumerate() {
             wrapped_lines.push((wrapped_line, source_idx, i == 0));
         }
@@ -244,9 +306,9 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
                 let is_match = app.doc_search_matches.contains(&source_idx);
 
                 let num_style = if is_match {
-                    Style::default().fg(Color::Rgb(102, 217, 239)) // Cyan for match lines
+                    Style::default().fg(colors.highlight_fg)
                 } else {
-                    Style::default().fg(Color::Rgb(117, 113, 94)) // Monokai comment gray
+                    Style::default().fg(colors.comment)
                 };
 
                 // Only show line number for first line of wrapped sequence
@@ -264,7 +326,7 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
 
                 let mut spans = vec![num_span];
                 if let Some(ref query) = search_query {
-                    spans.extend(highlight_matches(line.spans, query));
+                    spans.extend(highlight_matches(line.spans, query, &colors));
                 } else {
                     spans.extend(line.spans);
                 }
@@ -278,7 +340,7 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
             .take(area.height.saturating_sub(2) as usize)
             .map(|(line, _source_idx, _is_first)| {
                 if let Some(ref query) = search_query {
-                    Line::from(highlight_matches(line.spans, query))
+                    Line::from(highlight_matches(line.spans, query, &colors))
                 } else {
                     line
                 }
@@ -292,13 +354,14 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
                 .borders(Borders::ALL)
                 .border_style(border_style)
                 .title(title),
-        );
+        )
+        .style(Style::default().bg(colors.background));
 
     f.render_widget(paragraph, area);
 
     // Calculate total wrapped lines for scrollbar
     let total_wrapped_lines = app.rendered_content.iter()
-        .map(|line| wrap_line(line, max_width).len())
+        .map(|line| wrap_line(line, app.settings.wrap_width.to_usize(), &colors).len())
         .sum::<usize>();
 
     // Draw scrollbar if content is scrollable
@@ -323,15 +386,21 @@ fn draw_content(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn wrap_line(line: &RenderedLine, max_width: usize) -> Vec<Line<'static>> {
+fn wrap_line(line: &RenderedLine, max_width: Option<usize>, colors: &ThemeColors) -> Vec<Line<'static>> {
     if line.segments.is_empty() {
         return vec![Line::from("")];
     }
 
     // Don't wrap table rows or separators
     if line.is_table_row || line.is_table_separator {
-        return vec![render_line(line)];
+        return vec![render_line_with_theme(line, colors)];
     }
+
+    // If no wrapping, just render
+    let max_width = match max_width {
+        Some(w) => w,
+        None => return vec![render_line_with_theme(line, colors)],
+    };
 
     // Get the full text content to check length
     let full_text: String = line.segments.iter().map(|seg| {
@@ -346,7 +415,7 @@ fn wrap_line(line: &RenderedLine, max_width: usize) -> Vec<Line<'static>> {
 
     // If line fits, just render normally
     if full_text.len() <= max_width {
-        return vec![render_line(line)];
+        return vec![render_line_with_theme(line, colors)];
     }
 
     // For long lines, we need to wrap
@@ -362,14 +431,14 @@ fn wrap_line(line: &RenderedLine, max_width: usize) -> Vec<Line<'static>> {
             current_line.push_str(word);
         } else {
             // Create a simple line with the base style
-            let style = get_line_style(line);
+            let style = get_line_style(line, colors);
             result.push(Line::from(Span::styled(current_line.clone(), style)));
             current_line = word.to_string();
         }
     }
 
     if !current_line.is_empty() {
-        let style = get_line_style(line);
+        let style = get_line_style(line, colors);
         result.push(Line::from(Span::styled(current_line, style)));
     }
 
@@ -380,43 +449,31 @@ fn wrap_line(line: &RenderedLine, max_width: usize) -> Vec<Line<'static>> {
     result
 }
 
-fn get_line_style(line: &RenderedLine) -> Style {
+fn get_line_style(line: &RenderedLine, colors: &ThemeColors) -> Style {
     if line.heading_level > 0 {
-        get_heading_style(line.heading_level)
+        get_heading_style(line.heading_level, colors)
     } else if line.is_code_block {
-        Style::default().fg(Color::Rgb(166, 226, 46))
+        Style::default().fg(colors.code)
     } else if line.is_blockquote {
-        Style::default().fg(Color::Rgb(117, 113, 94))
+        Style::default().fg(colors.comment)
     } else if line.is_horizontal_rule {
-        Style::default().fg(Color::Rgb(117, 113, 94))
+        Style::default().fg(colors.comment)
     } else if line.is_table_row || line.is_table_separator {
-        Style::default().fg(Color::Rgb(102, 217, 239)) // Monokai cyan for tables
+        Style::default().fg(colors.table)
     } else {
-        Style::default().fg(Color::Rgb(248, 248, 242))
+        Style::default().fg(colors.foreground)
     }
 }
 
-fn render_line(line: &RenderedLine) -> Line<'static> {
+fn render_line_with_theme(line: &RenderedLine, colors: &ThemeColors) -> Line<'static> {
     if line.segments.is_empty() {
         return Line::from("");
     }
 
     let mut spans = Vec::new();
 
-    // Determine base style based on line type (Monokai Dark theme)
-    let base_style = if line.heading_level > 0 {
-        get_heading_style(line.heading_level)
-    } else if line.is_code_block {
-        Style::default().fg(Color::Rgb(166, 226, 46)) // Monokai green
-    } else if line.is_blockquote {
-        Style::default().fg(Color::Rgb(117, 113, 94)) // Monokai comment gray
-    } else if line.is_horizontal_rule {
-        Style::default().fg(Color::Rgb(117, 113, 94)) // Monokai comment gray
-    } else if line.is_table_row || line.is_table_separator {
-        Style::default().fg(Color::Rgb(102, 217, 239)) // Monokai cyan for tables
-    } else {
-        Style::default().fg(Color::Rgb(248, 248, 242)) // Monokai foreground
-    };
+    // Determine base style based on line type
+    let base_style = get_line_style(line, colors);
 
     for segment in &line.segments {
         match segment {
@@ -427,16 +484,15 @@ fn render_line(line: &RenderedLine) -> Line<'static> {
                 spans.push(Span::styled(
                     format!("`{}`", text),
                     Style::default()
-                        .fg(Color::Rgb(253, 151, 31)) // Monokai orange
-                        .bg(Color::Rgb(39, 40, 34)), // Monokai background
+                        .fg(colors.heading1) // Use heading1 color for inline code
+                        .bg(colors.code_bg),
                 ));
             }
             TextSegment::Link { text, .. } => {
-                // Display link text in cyan (URL not shown to keep it clean)
                 spans.push(Span::styled(
                     text.clone(),
                     Style::default()
-                        .fg(Color::Rgb(102, 217, 239)), // Monokai cyan for links
+                        .fg(colors.link),
                 ));
             }
             TextSegment::Emphasis(text) => {
@@ -457,10 +513,11 @@ fn render_line(line: &RenderedLine) -> Line<'static> {
     Line::from(spans)
 }
 
+
 fn draw_settings_overlay(f: &mut Frame, app: &App, area: Rect) {
-    // Calculate overlay size (centered, 50% width, 30% height)
+    // Calculate overlay size (centered, 50% width, 40% height)
     let overlay_width = (area.width as f32 * 0.5) as u16;
-    let overlay_height = (area.height as f32 * 0.3) as u16;
+    let overlay_height = (area.height as f32 * 0.4) as u16;
     let overlay_x = (area.width - overlay_width) / 2;
     let overlay_y = (area.height - overlay_height) / 2;
 
@@ -469,28 +526,46 @@ fn draw_settings_overlay(f: &mut Frame, app: &App, area: Rect) {
     // Clear the area
     f.render_widget(Clear, overlay_area);
 
-    // Settings list
-    let settings_items = vec![
-        ("Show line numbers", app.settings.show_line_numbers),
-    ];
+    // Build settings items
+    let mut items: Vec<ListItem> = Vec::new();
 
-    let items: Vec<ListItem> = settings_items
-        .iter()
-        .enumerate()
-        .map(|(idx, (name, enabled))| {
-            let checkbox = if *enabled { "[x]" } else { "[ ]" };
-            let style = if idx == app.settings_selected {
-                Style::default()
-                    .bg(Color::Rgb(102, 217, 239))
-                    .fg(Color::Black)
-            } else {
-                Style::default().fg(Color::White)
-            };
+    // Setting 0: Show line numbers (toggle)
+    let checkbox = if app.settings.show_line_numbers { "[x]" } else { "[ ]" };
+    let style = if app.settings_selected == 0 {
+        Style::default().bg(Color::Rgb(102, 217, 239)).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    items.push(ListItem::new(Line::from(Span::styled(
+        format!("{} Show line numbers", checkbox),
+        style,
+    ))));
 
-            let content = format!("{} {}", checkbox, name);
-            ListItem::new(Line::from(Span::styled(content, style)))
-        })
-        .collect();
+    // Setting 1: Theme (cycle)
+    let theme_name = match app.settings.theme {
+        Theme::Dark => "Dark",
+        Theme::Light => "Light",
+    };
+    let style = if app.settings_selected == 1 {
+        Style::default().bg(Color::Rgb(102, 217, 239)).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    items.push(ListItem::new(Line::from(Span::styled(
+        format!("    Theme: {}", theme_name),
+        style,
+    ))));
+
+    // Setting 2: Wrap width (cycle)
+    let style = if app.settings_selected == 2 {
+        Style::default().bg(Color::Rgb(102, 217, 239)).fg(Color::Black)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    items.push(ListItem::new(Line::from(Span::styled(
+        format!("    Wrap width: {}", app.settings.wrap_width.display_name()),
+        style,
+    ))));
 
     let settings_list = List::new(items).block(
         Block::default()
@@ -583,11 +658,11 @@ fn draw_search_overlay(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(results_list, chunks[1]);
 }
 
-fn highlight_matches(spans: Vec<Span<'static>>, query: &str) -> Vec<Span<'static>> {
+fn highlight_matches(spans: Vec<Span<'static>>, query: &str, colors: &ThemeColors) -> Vec<Span<'static>> {
     let mut result = Vec::new();
     let highlight_style = Style::default()
-        .fg(Color::Rgb(102, 217, 239)) // Cyan text
-        .bg(Color::Rgb(39, 40, 34));   // Dark background for contrast
+        .fg(colors.highlight_fg)
+        .bg(colors.highlight_bg);
 
     for span in spans {
         let text = span.content.to_string();
@@ -699,24 +774,23 @@ fn draw_about_overlay(f: &mut Frame, area: Rect) {
     f.render_widget(about_paragraph, overlay_area);
 }
 
-fn get_heading_style(level: u8) -> Style {
-    // Monokai Dark theme colors
+fn get_heading_style(level: u8, colors: &ThemeColors) -> Style {
     match level {
         1 => Style::default()
-            .fg(Color::Rgb(253, 151, 31)) // Monokai orange (more readable)
+            .fg(colors.heading1)
             .add_modifier(Modifier::BOLD),
         2 => Style::default()
-            .fg(Color::Rgb(166, 226, 46)) // Monokai green
+            .fg(colors.heading2)
             .add_modifier(Modifier::BOLD),
         3 => Style::default()
-            .fg(Color::Rgb(230, 219, 116)) // Monokai yellow
+            .fg(colors.heading3)
             .add_modifier(Modifier::BOLD),
         4 => Style::default()
-            .fg(Color::Rgb(174, 129, 255)), // Monokai purple
+            .fg(colors.heading4),
         5 => Style::default()
-            .fg(Color::Rgb(102, 217, 239)), // Monokai cyan
+            .fg(colors.heading5),
         6 => Style::default()
-            .fg(Color::Rgb(117, 113, 94)), // Monokai comment gray
+            .fg(colors.heading6),
         _ => Style::default(),
     }
 }

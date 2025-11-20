@@ -22,15 +22,58 @@ pub enum AppMode {
     About,  // About window
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum Theme {
+    Dark,
+    Light,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum WrapWidth {
+    Chars80,
+    Chars120,
+    NoWrap,
+}
+
+impl WrapWidth {
+    pub fn to_usize(self) -> Option<usize> {
+        match self {
+            WrapWidth::Chars80 => Some(80),
+            WrapWidth::Chars120 => Some(120),
+            WrapWidth::NoWrap => None,
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            WrapWidth::Chars80 => "80 characters",
+            WrapWidth::Chars120 => "120 characters",
+            WrapWidth::NoWrap => "No wrap",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            WrapWidth::Chars80 => WrapWidth::Chars120,
+            WrapWidth::Chars120 => WrapWidth::NoWrap,
+            WrapWidth::NoWrap => WrapWidth::Chars80,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub show_line_numbers: bool,
+    pub theme: Theme,
+    pub wrap_width: WrapWidth,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            show_line_numbers: false,
+            show_line_numbers: true,
+            theme: Theme::Dark,
+            wrap_width: WrapWidth::Chars120,
         }
     }
 }
@@ -120,8 +163,6 @@ impl App {
             create_heading_line("Search", 2),
             RenderedLine::new_empty(),
             create_plain_line("  /         Search in document"),
-            create_plain_line("  n         Next match"),
-            create_plain_line("  N         Previous match"),
             create_plain_line("  Ctrl+s    Search all files"),
             RenderedLine::new_empty(),
             create_heading_line("General", 2),
@@ -384,14 +425,22 @@ impl App {
     pub fn settings_toggle_current(&mut self) {
         match self.settings_selected {
             0 => self.settings.show_line_numbers = !self.settings.show_line_numbers,
+            1 => {
+                self.settings.theme = match self.settings.theme {
+                    Theme::Dark => Theme::Light,
+                    Theme::Light => Theme::Dark,
+                };
+            }
+            2 => {
+                self.settings.wrap_width = self.settings.wrap_width.next();
+            }
             _ => {}
         }
         self.settings.save();
     }
 
     pub fn settings_next(&mut self) {
-        // Currently only 1 setting, but prepared for more
-        let max_settings = 0;
+        let max_settings = 2; // 0, 1, 2
         if self.settings_selected < max_settings {
             self.settings_selected += 1;
         }
@@ -489,7 +538,7 @@ impl App {
 
     /// Convert a source line index to its wrapped line index
     fn source_to_wrapped_index(&self, source_idx: usize) -> usize {
-        let max_width = 120;
+        let max_width = self.settings.wrap_width.to_usize();
         let mut wrapped_idx = 0;
 
         for (idx, line) in self.rendered_content.iter().enumerate() {
@@ -504,7 +553,7 @@ impl App {
     }
 
     /// Count how many wrapped lines a single RenderedLine produces
-    fn count_wrapped_lines(&self, line: &RenderedLine, max_width: usize) -> usize {
+    fn count_wrapped_lines(&self, line: &RenderedLine, max_width: Option<usize>) -> usize {
         if line.segments.is_empty() {
             return 1;
         }
@@ -513,6 +562,12 @@ impl App {
         if line.is_table_row || line.is_table_separator {
             return 1;
         }
+
+        // If no wrapping, return 1
+        let max_width = match max_width {
+            Some(w) => w,
+            None => return 1,
+        };
 
         // Get the full text content to check length
         let full_text: String = line.segments.iter().map(|seg| {
@@ -558,7 +613,7 @@ impl App {
 
     /// Get total number of wrapped lines
     pub fn total_wrapped_lines(&self) -> usize {
-        let max_width = 120;
+        let max_width = self.settings.wrap_width.to_usize();
         self.rendered_content.iter()
             .map(|line| self.count_wrapped_lines(line, max_width))
             .sum()

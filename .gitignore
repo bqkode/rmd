@@ -34,3 +34,6 @@ Desktop.ini
 # Environment
 .env
 .env.*
+
+# Homebrew formula (lives in tap repo)
+/Formula/

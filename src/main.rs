@@ -124,6 +124,14 @@ fn run_app<B: ratatui::backend::Backend>(
                                 app.doc_search_next();
                             }
                             KeyCode::Backspace => app.doc_search_backspace(),
+                            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                // Ctrl+n: next match (vim style in search)
+                                app.doc_search_next();
+                            }
+                            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                // Ctrl+p: previous match (vim style in search)
+                                app.doc_search_previous();
+                            }
                             KeyCode::Char(c) => app.doc_search_add_char(c),
                             _ => {}
                         }
@@ -198,14 +206,6 @@ fn run_app<B: ratatui::backend::Backend>(
                             KeyCode::Char('/') => {
                                 // /: search in document (vim style)
                                 app.enter_doc_search_mode();
-                            }
-                            KeyCode::Char('n') => {
-                                // n: next search result
-                                app.doc_search_next();
-                            }
-                            KeyCode::Char('N') => {
-                                // N: previous search result
-                                app.doc_search_previous();
                             }
 
                             // Global search (custom, no vim equivalent)
